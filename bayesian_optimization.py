@@ -28,15 +28,34 @@ class BayesianOptimization:
             random_state=self._random_state,
         )
 
-    def initialize(self):
-        self._observations_xs = []
-        self._observations_ys = []
+    def initialize(self, observations_xs=None, observations_ys=None):
+        if observations_xs is not None:
+            self._observations_xs = observations_xs
+            self._observations_ys = observations_ys
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self._gp.fit(self._observations_xs, self._observations_ys)
+        else:
+            self._observations_xs = []
+            self._observations_ys = []
         self._x_max = None
         self._y_max = None
 
-    def probe(self, x):
+    def generate_init_observations_for_pesudo_target_func(self, len_init_observations=20):
+        self.initialize()
+        init_observation_points = self._random_state.uniform(self._bounds[:, 0], self._bounds[:, 1],
+                                                             size=(len_init_observations, self._bounds.shape[0]))
+        for x in init_observation_points:
+            self.probe(x, fit=True)
+        return self._observations_xs, self._observations_ys
+
+    def probe(self, x, fit=False):
         if self._f is None:
-            # using the GP posterior as the pesudo target function
+            # using the GP posterior to sample a target function
+            if fit and len(self._observations_xs) > 0:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    self._gp.fit(self._observations_xs, self._observations_ys)
             mean, std = self._gp.predict(x.reshape(1, -1), return_std=True)
             y = np.random.normal(mean, std)
             y = np.squeeze(y)
@@ -71,7 +90,7 @@ class BayesianOptimization:
         init_points = self._random_state.uniform(self._bounds[:, 0], self._bounds[:, 1],
                                                  size=(n_init_points, self._bounds.shape[0]))
         for x in init_points:
-            self.probe(x)
+            self.probe(x, fit=True)
 
         # iterations
         for i in range(budget):

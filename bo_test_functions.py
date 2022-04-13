@@ -3,6 +3,8 @@ from numpy import *
 import numpy as np
 
 
+quick_test_funcs = ['eggholder', 'ackley', 'dixon_price', 's_tang', 'branin']
+
 test_funcs = {}
 test_func_bounds = {}
 test_func_max = {}

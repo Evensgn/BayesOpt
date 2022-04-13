@@ -1,12 +1,19 @@
 ''' The code in this file is based on https://github.com/fmfn/BayesianOptimization '''
 
-import warnings
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+import warnings
 from scipy.stats import norm
 from scipy.optimize import minimize
 
+from sklearn.gaussian_process.kernels import Matern
+from sklearn.gaussian_process import GaussianProcessRegressor
 
-def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=1000, n_iter=10):
+
+def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=1000, n_iter=5, lbfgs_maxiter=1000):
     """
     A function to find the maximum of the acquisition function
     It uses a combination of random sampling (cheap) and the 'L-BFGS-B'
@@ -57,7 +64,8 @@ def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=1000
         res = minimize(lambda x: -ac_value(x),
                        x_try.reshape(1, -1),
                        bounds=bounds,
-                       method='L-BFGS-B')
+                       method='L-BFGS-B',
+                       options=dict(maxiter=lbfgs_maxiter))
 
         # See if success
         if not res.success:
@@ -97,6 +105,58 @@ class StaticAcquisitionFunction:
 
     def acq_func(self, mean, std, y_max, remaining_budget):
         return self._acq_func(mean, std, y_max)
+
+
+class NeuralAcquisitionFunction(nn.Module):
+    def __init__(self):
+        super(NeuralAcquisitionFunction, self).__init__()
+
+        self.fc1 = nn.Linear(3, 5)
+        self.fc2 = nn.Linear(5, 5)
+        self.fc3 = nn.Linear(5, 1)
+
+        self.total_num_parameters = sum(p.numel() for p in self.parameters())
+
+    def forward(self, x):
+        x = torch.tanh(self.fc1(x))
+        x = torch.tanh(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+    def load_state_dict_from_vector(self, x):
+        current_idx = 0
+        state_dict = self.state_dict()
+        for key, value in state_dict.items():
+            state_dict[key] = torch.from_numpy(x[current_idx:current_idx+value.numel()].reshape(value.shape))
+            current_idx += value.numel()
+        self.load_state_dict(state_dict)
+
+    def acq_func(self, mean, std, y_max):
+        n_samples = mean.shape[0]
+        mean = mean.reshape([n_samples, 1])
+        std = std.reshape([n_samples, 1])
+        y_max = np.repeat(y_max, mean.shape[0]).reshape([n_samples, 1])
+        ret = self.forward(torch.from_numpy(np.hstack((mean, std, y_max))).float()).detach().numpy()
+        ret = np.squeeze(ret)
+        return ret
+
+
+class UCBAcquisitionFunction:
+    def __init__(self, beta):
+        self._beta = beta
+
+    def acq_func(self, mean, std, y_max):
+        return mean + self._beta * std
+
+
+class EIAcquisitionFunction:
+    def __init__(self, xi):
+        self._xi = xi
+
+    def acq_func(self, mean, std, y_max):
+        a = mean - (y_max + self._xi)
+        z = a / std
+        return a * norm.cdf(z) + std * norm.pdf(z)
 
 
 def ensure_rng(random_state=None):
