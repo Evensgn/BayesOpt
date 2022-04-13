@@ -12,28 +12,26 @@ import dill as pickle
 
 
 def run_bo(run_args):
-    (bo, observations_xs, observations_ys, acq_func, n_init_points, budget) = run_args
+    (f, bound, observations_xs, observations_ys, acq_func, n_init_points, budget) = run_args
+    bo = BayesianOptimization(f, bound)
     bo.initialize(observations_xs=observations_xs, observations_ys=observations_ys)
     _, y_max = bo.maximize(acq_func, n_init_points=n_init_points, budget=budget)
     return y_max
 
 
 def test_acq_func(f, bound, f_max, acq_func, n_init_points, budget, init_observations_list=None, n_bo_runs=50):
-    pool = ProcessingPool(nodes=args.n_workers)
-
-    bo = BayesianOptimization(f, bound)
+    global pool
     mean_y_max = 0.0
-
     task_list = []
     if f is None:
         for observations_xs, observations_ys in init_observations_list:
             for i in range(n_bo_runs):
-                task_list.append((bo, observations_xs, observations_ys, acq_func, n_init_points, budget))
+                task_list.append((f, bound, observations_xs, observations_ys, acq_func, n_init_points, budget))
 
         mean_y_max /= n_bo_runs * len(init_observations_list)
     else:
         for i in range(n_bo_runs):
-            task_list.append((bo, None, None, acq_func, n_init_points, budget))
+            task_list.append((f, bound, None, None, acq_func, n_init_points, budget))
     task_outputs = pool.map(run_bo, task_list)
     for output in task_outputs:
         mean_y_max += output
@@ -67,7 +65,7 @@ def parameterized_ucb_conversion_func(x):
 
 
 def optimize_parameterized_acq_func(param_bound, conversion_func, x0, n_init_points, max_budget, domain_bound, len_init_observations=20,
-                                    n_init_observations=10, n_bo_runs=50, lbfgs_maxiter=100):
+                                    n_init_observations=10, n_bo_runs=50, higher_level_maxiter=100):
     acq_funcs = []
     param_list = []
 
@@ -86,15 +84,21 @@ def optimize_parameterized_acq_func(param_bound, conversion_func, x0, n_init_poi
                                              init_observations_list=init_observations_list,
                                              n_bo_runs=n_bo_runs)
 
+        '''
         res = minimize(objective_func,
                        x0,
                        bounds=param_bound,
                        method='L-BFGS-B',
                        options=dict(maxiter=lbfgs_maxiter))
+        '''
 
-        single_step_acq_func = conversion_func(res.x)
+        bo = BayesianOptimization(lambda x: -objective_func(x), param_bound)
+        ei_acq_func = StaticAcquisitionFunction(util.expected_improvement).acq_func
+        x_max, y_max = bo.maximize(ei_acq_func, n_init_points=5, budget=higher_level_maxiter)
+
+        single_step_acq_func = conversion_func(x_max)
         acq_funcs.append(single_step_acq_func)
-        param_list.append(res.x)
+        param_list.append(x_max)
 
     return acq_funcs, param_list
 
@@ -123,14 +127,15 @@ if __name__ == '__main__':
     parser.add_argument('--n_init_observations', type=int, default=10, help='Number of initial observations')
     parser.add_argument('--n_bo_runs', type=int, default=20, help='Number of BO runs')
     parser.add_argument('--max_budget', type=int, default=5, help='Maximum budget for BO')
-    parser.add_argument('--acq_param_lbfgs_maxiter', type=int, default=10,
-                        help='Maximum number of iterations for L-BFGS-B for parameterized acquisition function optimization')
+    parser.add_argument('--higher_level_maxiter', type=int, default=20, help='higher level maxiter')
     parser.add_argument('--n_workers', type=int, default=1, help='Number of workers')
     parser.add_argument('--save_id', type=int, default=0, help='Save id')
 
     parser.add_argument('--n_test_init_points', type=int, default=5, help='Number of test initial points')
     parser.add_argument('--n_test_bo_runs', type=int, default=300, help='Number of test BO runs')
     args = parser.parse_args()
+
+    pool = ProcessingPool(nodes=args.n_workers)
 
     # optimize parameterized UCB
     param_bound = np.array([[0.0, 10.0]])
@@ -143,7 +148,7 @@ if __name__ == '__main__':
         len_init_observations=args.len_init_observations,
         n_init_observations=args.n_init_observations,
         n_bo_runs=args.n_bo_runs,
-        lbfgs_maxiter=args.acq_param_lbfgs_maxiter
+        higher_level_maxiter=args.higher_level_maxiter
     )
     print('parameterized UCB param list: {}'.format(ucb_param_list))
 
