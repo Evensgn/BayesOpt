@@ -13,7 +13,19 @@ from sklearn.gaussian_process.kernels import Matern
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 
-def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=1000, n_iter=5, lbfgs_maxiter=1000):
+def acq_max_grid(ac, gp, y_max, grid_points, remaining_budget):
+    def ac_value(x):
+        if len(x.shape) == 1:
+            x = x.reshape(1, -1)
+        mean, std = gp.predict(x, return_std=True)
+        return ac(mean, std, y_max, remaining_budget)
+
+    ys = ac_value(grid_points)
+    x_max = grid_points[ys.argmax()]
+    return x_max
+
+
+def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=500, n_iter=5, lbfgs_maxiter=100):
     """
     A function to find the maximum of the acquisition function
     It uses a combination of random sampling (cheap) and the 'L-BFGS-B'
@@ -41,7 +53,6 @@ def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=1000
     -------
     :return: x_max, The arg max of the acquisition function.
     """
-
     def ac_value(x):
         if len(x.shape) == 1:
             x = x.reshape(1, -1)
@@ -55,7 +66,7 @@ def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=1000
     x_max = x_tries[ys.argmax()]
     max_acq = ys.max()
 
-    # Explore the parameter space more throughly
+    # Explore the parameter space more thoroughly
     x_seeds = random_state.uniform(bounds[:, 0], bounds[:, 1],
                                    size=(n_iter, bounds.shape[0]))
 
