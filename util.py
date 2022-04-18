@@ -13,6 +13,10 @@ from sklearn.gaussian_process.kernels import Matern
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 
+inf = 1e3
+eps = 1e-5
+
+
 def acq_max_grid(ac, gp, y_max, grid_points, remaining_budget):
     def ac_value(x):
         if len(x.shape) == 1:
@@ -21,7 +25,16 @@ def acq_max_grid(ac, gp, y_max, grid_points, remaining_budget):
         return ac(mean, std, y_max, remaining_budget)
 
     ys = ac_value(grid_points)
-    x_max = grid_points[ys.argmax()]
+    ys_max = ys.max()
+
+    # not using ys_max_id = ys.argmax() because it is not deterministic
+    ys_max_id = None
+    for i in range(len(ys)):
+        if ys[i] + eps >= ys_max:
+            ys_max_id = i
+            break
+
+    x_max = grid_points[ys_max_id]
     return x_max
 
 
@@ -93,18 +106,12 @@ def acq_max(ac, gp, y_max, bounds, remaining_budget, random_state, n_warmup=500,
     return np.clip(x_max, bounds[:, 0], bounds[:, 1])
 
 
-def expected_improvement(mean, std, y_max):
-    a = mean - y_max
-    z = a / std
-    return a * norm.cdf(z) + std * norm.pdf(z)
-
-
 # pack a sequence of single-step acquisition functions
 class SequenceAcquisitionFunction:
     def __init__(self, acq_funcs):
         self._acq_funcs = acq_funcs
 
-    def acq_func(self, mean, std, y_max, remaining_budget):
+    def __call__(self, mean, std, y_max, remaining_budget):
         assert len(self._acq_funcs) >= remaining_budget
         return self._acq_funcs[remaining_budget - 1](mean, std, y_max)
 
@@ -114,7 +121,7 @@ class StaticAcquisitionFunction:
     def __init__(self, acq_func):
         self._acq_func = acq_func
 
-    def acq_func(self, mean, std, y_max, remaining_budget):
+    def __call__(self, mean, std, y_max, remaining_budget):
         return self._acq_func(mean, std, y_max)
 
 
@@ -142,7 +149,7 @@ class NeuralAcquisitionFunction(nn.Module):
             current_idx += value.numel()
         self.load_state_dict(state_dict)
 
-    def acq_func(self, mean, std, y_max):
+    def __call__(self, mean, std, y_max):
         n_samples = mean.shape[0]
         mean = mean.reshape([n_samples, 1])
         std = std.reshape([n_samples, 1])
@@ -156,7 +163,7 @@ class UCBAcquisitionFunction:
     def __init__(self, beta):
         self._beta = beta
 
-    def acq_func(self, mean, std, y_max):
+    def __call__(self, mean, std, y_max):
         return mean + self._beta * std
 
 
@@ -164,10 +171,19 @@ class EIAcquisitionFunction:
     def __init__(self, xi):
         self._xi = xi
 
-    def acq_func(self, mean, std, y_max):
+    def __call__(self, mean, std, y_max):
         a = mean - (y_max + self._xi)
         z = a / std
         return a * norm.cdf(z) + std * norm.pdf(z)
+
+
+class PIAcquisitionFunction:
+    def __init__(self, xi):
+        self._xi = xi
+
+    def __call__(self, mean, std, y_max):
+        z = (mean - (y_max + self._xi)) / std
+        return norm.cdf(z)
 
 
 def ensure_rng(random_state=None):

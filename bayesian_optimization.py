@@ -4,7 +4,7 @@ from sklearn.gaussian_process.kernels import Matern
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 import util
-from util import acq_max, acq_max_grid, ensure_rng
+from util import acq_max, acq_max_grid, ensure_rng, inf
 import warnings
 import numpy as np
 
@@ -17,7 +17,7 @@ class BayesianOptimization:
         self._observations_xs = []
         self._observations_ys = []
         self._x_max = None
-        self._y_max = -1e5
+        self._y_max = -inf
 
         # internal GP regressor
         if gp_params is None:
@@ -45,7 +45,7 @@ class BayesianOptimization:
             self._observations_xs = []
             self._observations_ys = []
         self._x_max = None
-        self._y_max = -1e5
+        self._y_max = -inf
 
     def probe(self, x):
         y = self._f(x)
@@ -83,7 +83,7 @@ class BayesianOptimization:
 
         return suggestion
 
-    def maximize(self, acq_func, n_init_points=0, budget=20):
+    def maximize(self, acq_func, n_init_points=0, budget=20, return_history=False):
         # generate the initial points
         if self._grid_points is None:
             init_points = self._random_state.uniform(self._bounds[:, 0], self._bounds[:, 1],
@@ -95,12 +95,22 @@ class BayesianOptimization:
         for x in init_points:
             self.probe(x)
 
+        if return_history:
+            x_max_list = []
+            y_max_list = []
+
         # iterations
         for i in range(budget):
             x = self.suggest(acq_func, budget - i)
             self.probe(x)
+            if return_history:
+                x_max_list.append(self._x_max)
+                y_max_list.append(self._y_max)
 
-        return self._x_max, self._y_max
+        if return_history:
+            return self._x_max, self._y_max, x_max_list, y_max_list, self._observations_xs, self._observations_ys
+        else:
+            return self._x_max, self._y_max
 
     def set_bounds(self, bounds):
         self._bounds = bounds
