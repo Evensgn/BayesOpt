@@ -118,7 +118,7 @@ class SequenceAcquisitionFunction:
 
 # wrap a static acquisition function
 class StaticAcquisitionFunction:
-    def __init__(self, acq_func):
+    def __init__(self, acq_func) -> object:
         self._acq_func = acq_func
 
     def __call__(self, mean, std, y_max, remaining_budget):
@@ -164,7 +164,7 @@ class UCBAcquisitionFunction:
         self._beta = beta
 
     def __call__(self, mean, std, y_max):
-        return mean + self._beta * std
+        return mean + np.sqrt(self._beta) * std
 
 
 class EIAcquisitionFunction:
@@ -184,6 +184,14 @@ class PIAcquisitionFunction:
     def __call__(self, mean, std, y_max):
         z = (mean - (y_max + self._xi)) / std
         return norm.cdf(z)
+
+
+class RandomAcquisitionFunction:
+    def __init__(self):
+        pass
+
+    def __call__(self, mean, std, y_max):
+        return np.random.random(mean.shape)
 
 
 def ensure_rng(random_state=None):

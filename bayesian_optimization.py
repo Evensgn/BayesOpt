@@ -1,6 +1,6 @@
 ''' The code in this file is based on https://github.com/fmfn/BayesianOptimization '''
 
-from sklearn.gaussian_process.kernels import Matern
+from sklearn.gaussian_process.kernels import Matern, RBF
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 import util
@@ -29,6 +29,8 @@ class BayesianOptimization:
                 random_state=self._random_state
             )
         else:
+            # replace the random_state
+            gp_params['random_state'] = self._random_state
             self._gp = GaussianProcessRegressor(**gp_params)
 
         # grid mode
@@ -107,10 +109,15 @@ class BayesianOptimization:
                 x_max_list.append(self._x_max)
                 y_max_list.append(self._y_max)
 
+        # argmax of the posterior
+        x_infer = self.suggest(util.StaticAcquisitionFunction(util.UCBAcquisitionFunction(beta=0.0)), 0)
+        y_infer = self._f(x_infer)
+
         if return_history:
-            return self._x_max, self._y_max, x_max_list, y_max_list, self._observations_xs, self._observations_ys
+            return self._x_max, self._y_max, x_infer, y_infer, \
+                   x_max_list, y_max_list, self._observations_xs, self._observations_ys
         else:
-            return self._x_max, self._y_max
+            return self._x_max, self._y_max, x_infer, y_infer
 
     def set_bounds(self, bounds):
         self._bounds = bounds
