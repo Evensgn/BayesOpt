@@ -10,7 +10,7 @@ import numpy as np
 
 
 class BayesianOptimization:
-    def __init__(self, f, bounds, grid_points=None, gp_params=None, random_state=None):
+    def __init__(self, f, bounds, grid_points=None, gp_params=None, ready_gp=None, noise_sigma=0.0, random_state=None):
         self._random_state = ensure_rng(random_state)
         self._f = f
         self._bounds = bounds
@@ -18,9 +18,12 @@ class BayesianOptimization:
         self._observations_ys = []
         self._x_max = None
         self._y_max = -inf
+        self._noise_sigma = noise_sigma
 
         # internal GP regressor
-        if gp_params is None:
+        if ready_gp is not None:
+            self._gp = ready_gp
+        elif gp_params is None:
             self._gp = GaussianProcessRegressor(
                 kernel=Matern(nu=2.5),
                 alpha=1e-6,
@@ -52,12 +55,15 @@ class BayesianOptimization:
     def probe(self, x):
         y = self._f(x)
 
-        self._observations_xs.append(list(x))
-        self._observations_ys.append(y)
-
+        # update the y_max value before adding noise
         if self._y_max is None or y > self._y_max:
             self._x_max = x
             self._y_max = y
+
+        y += self._random_state.normal(loc=0.0, scale=self._noise_sigma)
+
+        self._observations_xs.append(list(x))
+        self._observations_ys.append(y)
 
     def suggest(self, acq_func, remaining_budget):
         if len(self._observations_xs) > 0:

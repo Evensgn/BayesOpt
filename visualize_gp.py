@@ -7,8 +7,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 if __name__ == "__main__":
     n_dim = 2
-    inner_gp_nu = 10.0
-    inner_gp_length_scale = 0.2
+    inner_gp_nu = 2.5
+    inner_gp_length_scale = 1.0
     inner_gp_lambda = 1.0
     n_test_funcs = 5
     n_grid_each_dim = 20

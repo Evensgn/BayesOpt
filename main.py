@@ -12,6 +12,26 @@ import matplotlib.pyplot as plt
 import math
 
 
+class GridFunction:
+    def __init__(self, grid_points, func_values):
+        self._grid_points = grid_points
+        self._func_values = func_values
+        self._dict = {}
+
+        for i in range(len(grid_points)):
+            self._dict[tuple(grid_points[i])] = func_values[i]
+        self._max_func_value = max(func_values)
+
+    def __call__(self, x):
+        return self._dict[tuple(x)]
+
+    def max_func_value(self):
+        return self._max_func_value
+
+    def func_values(self):
+        return self._func_values
+
+
 def run_bo(run_args):
     (f, bound, acq_func, grid_points, n_init_points, budget, return_history, random_state) = run_args
     # random_state set to constant 0 to make sure the BO runs are deterministic (gp.fit() uses random_state)
@@ -158,26 +178,6 @@ def parameterized_ei_constant_xi_conversion_func(x, max_budget):
         params.append(xi_i)
     acq_func = SequenceAcquisitionFunction(acq_funcs)
     return acq_func, params
-
-
-class GridFunction:
-    def __init__(self, grid_points, func_values):
-        self._grid_points = grid_points
-        self._func_values = func_values
-        self._dict = {}
-
-        for i in range(len(grid_points)):
-            self._dict[tuple(grid_points[i])] = func_values[i]
-        self._max_func_value = max(func_values)
-
-    def __call__(self, x):
-        return self._dict[tuple(x)]
-
-    def max_func_value(self):
-        return self._max_func_value
-
-    def func_values(self):
-        return self._func_values
 
 
 # sample target functions from gp
