@@ -2,7 +2,7 @@ import numpy as np
 
 from util import *
 from bayesian_optimization import BayesianOptimization
-from sklearn.gaussian_process.kernels import Matern, RBF
+from sklearn.gaussian_process.kernels import Matern, RBF, RationalQuadratic, ExpSineSquared
 from bo_test_functions import bo_test_funcs, bo_test_func_bounds, bo_test_func_max, eggholder_et_al_2d_list
 from scipy.optimize import differential_evolution
 from scipy.optimize import minimize
@@ -177,24 +177,28 @@ def test_gp(test_funcs, test_func_bounds, test_func_max_values, acq_func, gp, gr
 
 
 if __name__ == '__main__':
-    n_workers = 90
+    n_workers = 96
     n_dim = 2
     n_grid_each_dim = 10
     n_dataset_funcs = 1000
+    # n_small_dataset_funcs = 50
+    # n_large_dataset_funcs = 10000
     n_test_funcs = 100
-    budget = 20
-    n_bo_runs = 10
+    budget = 100
+    n_bo_runs = 3
     return_history = True
     n_init_points = 1
-    noise_sigma = 0.3
+    noise_sigma = 0.1
     beta = 1.0
-
+    # gp_kernel = Matern(nu=2.5, length_scale=1.0)
+    # gp_kernel = RationalQuadratic(length_scale=1.0, alpha=1.0)
+    gp_kernel = Matern(nu=1.5, length_scale=1.0)
     random_state = ensure_rng(0)
 
     pool = ProcessingPool(nodes=n_workers)
 
     gp_params = {
-        'kernel': Matern(nu=2.5, length_scale=1.0),
+        'kernel': gp_kernel,
         'alpha': 1e-6,
         'normalize_y': True,
         'n_restarts_optimizer': 5,
@@ -211,18 +215,35 @@ if __name__ == '__main__':
     grid_points = np.vstack(list(map(np.ravel, mesh_dims))).T
 
     # generate dataset and test functions
-    gen_funcs, gen_func_max_values = generate_samples_of_target_func(
-        gp_params, grid_points, n_dataset_funcs+n_test_funcs, random_state
+    dataset_funcs, _ = generate_samples_of_target_func(
+        gp_params, grid_points, n_dataset_funcs, random_state
     )
-
-    dataset_funcs = gen_funcs[:n_dataset_funcs]
     Y_dataset = []
     for func in dataset_funcs:
         Y_dataset.append(func.func_values())
     Y_dataset = np.array(Y_dataset)
 
-    test_funcs = gen_funcs[n_dataset_funcs:]
-    test_func_max_values = gen_func_max_values[n_dataset_funcs:]
+    '''
+    small_dataset_funcs, _ = generate_samples_of_target_func(
+        gp_params, grid_points, n_small_dataset_funcs, random_state
+    )
+    Y_small_dataset = []
+    for func in small_dataset_funcs:
+        Y_small_dataset.append(func.func_values())
+    Y_small_dataset = np.array(Y_small_dataset)
+
+    large_dataset_funcs, _ = generate_samples_of_target_func(
+        gp_params, grid_points, n_large_dataset_funcs, random_state
+    )
+    Y_large_dataset = []
+    for func in large_dataset_funcs:
+        Y_large_dataset.append(func.func_values())
+    Y_large_dataset = np.array(Y_large_dataset)
+    '''
+
+    test_funcs, test_func_max_values = generate_samples_of_target_func(
+        gp_params, grid_points, n_test_funcs, random_state
+    )
     test_func_bounds = [bounds] * n_test_funcs
 
     # fit the estimated prior
@@ -230,6 +251,13 @@ if __name__ == '__main__':
     gp_estimate.fit_prior(Y_dataset)
 
     '''
+    gp_estimate_small_dataset = EstimatedGP(grid_points)
+    gp_estimate_small_dataset.fit_prior(Y_small_dataset)
+
+    gp_estimate_large_dataset = EstimatedGP(grid_points)
+    gp_estimate_large_dataset.fit_prior(Y_large_dataset)
+    '''
+
     # run BO tests with correct GP and estimated GP
     result_list = []
     for beta in [0.1, 1.0, 10.0, 100.0, 1000.0, 1e4, 1e5, 1e6, 1e7]:
@@ -244,9 +272,25 @@ if __name__ == '__main__':
             noise_sigma,
             n_bo_runs=n_bo_runs, return_history=return_history, random_state=random_state
         )
+        '''
+        regrets_stats_estimated_gp_small_dataset, regret_histories_stats_estimated_gp_small_dataset = test_gp(
+            test_funcs, test_func_bounds, test_func_max_values, acq_func, gp_estimate_small_dataset, grid_points, n_init_points, budget,
+            noise_sigma,
+            n_bo_runs=n_bo_runs, return_history=return_history, random_state=random_state
+        )
+        regrets_stats_estimated_gp_large_dataset, regret_histories_stats_estimated_gp_large_dataset = test_gp(
+            test_funcs, test_func_bounds, test_func_max_values, acq_func, gp_estimate_large_dataset, grid_points, n_init_points, budget,
+            noise_sigma,
+            n_bo_runs=n_bo_runs, return_history=return_history, random_state=random_state
+        )
+        '''
 
         print('regrets_stats_correct_gp:', regrets_stats_correct_gp[0], regrets_stats_correct_gp[1])
         print('regrets_stats_estimated_gp:', regrets_stats_estimated_gp[0], regrets_stats_estimated_gp[1])
+        '''
+        print('regrets_stats_estimated_gp_small_dataset:', regrets_stats_estimated_gp_small_dataset[0], regrets_stats_estimated_gp_small_dataset[1])
+        print('regrets_stats_estimated_gp_large_dataset:', regrets_stats_estimated_gp_large_dataset[0], regrets_stats_estimated_gp_large_dataset[1])
+        '''
 
         result = {}
         result['beta'] = beta
@@ -254,13 +298,17 @@ if __name__ == '__main__':
         result['regret_histories_stats_correct_gp'] = regret_histories_stats_correct_gp
         result['regrets_stats_estimated_gp'] = regrets_stats_estimated_gp
         result['regret_histories_stats_estimated_gp'] = regret_histories_stats_estimated_gp
+        '''
+        result['regrets_stats_estimated_gp_small_dataset'] = regrets_stats_estimated_gp_small_dataset
+        result['regret_histories_stats_estimated_gp_small_dataset'] = regret_histories_stats_estimated_gp_small_dataset
+        result['regrets_stats_estimated_gp_large_dataset'] = regrets_stats_estimated_gp_large_dataset
+        result['regret_histories_stats_estimated_gp_large_dataset'] = regret_histories_stats_estimated_gp_large_dataset
+        '''
 
         result_list.append(result)
 
-    np.save('results/results_estimated_prior_2.npy', result_list)
-    '''
-
     result = {}
+    result['result_list'] = result_list
 
     acq_func = StaticAcquisitionFunction(RandomAcquisitionFunction())
     regrets_stats_random, regret_histories_stats_random = test_gp(
@@ -297,4 +345,4 @@ if __name__ == '__main__':
     result['mean_estimated_avg'] = mean_estimated_avg
     result['std_estimated_avg'] = std_estimated_avg
 
-    np.save('results/results_estimated_prior_4.npy', result)
+    np.save('results/results_estimated_prior_matern1.5_100.npy', result)

@@ -23,8 +23,8 @@ def plot_performance_curve(ax, data, label, time_list, log_plot):
 
 
 if __name__ == '__main__':
-    results = np.load('results/results_estimated_prior_2.npy', allow_pickle=True)
-    result_more = np.load('results/results_estimated_prior_3.npy', allow_pickle=True).item()
+    result_more = np.load('results/results_estimated_prior_matern1.5_100.npy', allow_pickle=True).item()
+    results = result_more['result_list']
 
     print(result_more['regrets_stats_random'])
     print('mean_correct_avg:', result_more['mean_correct_avg'])
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     ax.fill_between(betas, estimated_gp_regrets_lower, estimated_gp_regrets_upper, alpha=0.2, color=line.get_color())
 
     ax.legend()
-    fig.savefig('results/regret_vs_beta.pdf')
+    fig.savefig('results/regret_vs_beta_matern1.5_100.pdf')
     plt.close(fig)
 
     # plot the performance curves
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     ax.set_xlabel('BO iteration')
     ax.set_ylabel('average best sample simple regret')
 
-    max_budget = 20
+    max_budget = 100
     time_list = range(1, max_budget + 1)
 
     result = results[2]
@@ -83,13 +83,26 @@ if __name__ == '__main__':
 
     estimated_gp_regret_history = result['regret_histories_stats_estimated_gp'][0]
     estimated_gp_regret_history_std = result['regret_histories_stats_estimated_gp'][1]
-    estimated_gp_regret_history_upper = [estimated_gp_regret_history[i] + estimated_gp_regret_history_std[i] for i in
-                                       range(max_budget)]
-    estimated_gp_regret_history_lower = [estimated_gp_regret_history[i] - estimated_gp_regret_history_std[i] for i in
-                                       range(max_budget)]
+    estimated_gp_regret_history_upper = [estimated_gp_regret_history[i] + estimated_gp_regret_history_std[i] for i in range(max_budget)]
+    estimated_gp_regret_history_lower = [estimated_gp_regret_history[i] - estimated_gp_regret_history_std[i] for i in range(max_budget)]
     line = ax.plot(time_list, estimated_gp_regret_history, label='estimated_gp')[0]
-    ax.fill_between(time_list, estimated_gp_regret_history_lower, estimated_gp_regret_history_upper, alpha=0.2,
-                    color=line.get_color())
+    ax.fill_between(time_list, estimated_gp_regret_history_lower, estimated_gp_regret_history_upper, alpha=0.2, color=line.get_color())
+
+    '''
+    estimated_gp_regret_history_small_dataset = result['regret_histories_stats_estimated_gp_small_dataset'][0]
+    estimated_gp_regret_history_small_dataset_std = result['regret_histories_stats_estimated_gp_small_dataset'][1]
+    estimated_gp_regret_history_small_dataset_upper = [estimated_gp_regret_history_small_dataset[i] + estimated_gp_regret_history_small_dataset_std[i] for i in range(max_budget)]
+    estimated_gp_regret_history_small_dataset_lower = [estimated_gp_regret_history_small_dataset[i] - estimated_gp_regret_history_small_dataset_std[i] for i in range(max_budget)]
+    line = ax.plot(time_list, estimated_gp_regret_history_small_dataset, label='estimated_gp_small_dataset')[0]
+    ax.fill_between(time_list, estimated_gp_regret_history_small_dataset_lower, estimated_gp_regret_history_small_dataset_upper, alpha=0.2, color=line.get_color())
+
+    estimated_gp_regret_history_large_dataset = result['regret_histories_stats_estimated_gp_large_dataset'][0]
+    estimated_gp_regret_history_large_dataset_std = result['regret_histories_stats_estimated_gp_large_dataset'][1]
+    estimated_gp_regret_history_large_dataset_upper = [estimated_gp_regret_history_large_dataset[i] + estimated_gp_regret_history_large_dataset_std[i] for i in range(max_budget)]
+    estimated_gp_regret_history_large_dataset_lower = [estimated_gp_regret_history_large_dataset[i] - estimated_gp_regret_history_large_dataset_std[i] for i in range(max_budget)]
+    line = ax.plot(time_list, estimated_gp_regret_history_large_dataset, label='estimated_gp_large_dataset')[0]
+    ax.fill_between(time_list, estimated_gp_regret_history_large_dataset_lower, estimated_gp_regret_history_large_dataset_upper, alpha=0.2, color=line.get_color())
+    '''
 
     random_gp_regret_history = result_more['regret_histories_stats_random'][0]
     random_gp_regret_history_std = result_more['regret_histories_stats_random'][1]
@@ -102,6 +115,6 @@ if __name__ == '__main__':
                     color=line.get_color())
 
     ax.legend()
-    fig.savefig('results/regret_vs_steps_beta_10.pdf')
+    fig.savefig('results/regret_vs_steps_beta_matern1.5_100.pdf')
     plt.close(fig)
 
